@@ -22,11 +22,11 @@ COPY runpod_requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r runpod_requirements.txt
 
-# Copy the fixed RunPod handler
-COPY runpod_handler.py .
+# Copy the minimal test handler to debug RunPod output issues
+COPY runpod_handler_minimal.py .
 
 # Create directories for uploads and outputs
 RUN mkdir -p /app/uploads /app/outputs
 
-# Run the RunPod handler
-CMD ["python", "-u", "runpod_handler.py"]
+# Run the minimal test handler
+CMD ["python", "-u", "runpod_handler_minimal.py"]
