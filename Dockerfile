@@ -22,11 +22,11 @@ COPY runpod_requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r runpod_requirements.txt
 
-# Copy the ultra-debug handler to catch all exceptions
-COPY runpod_handler_debug.py .
+# Copy the basic handler to test RunPod initialization
+COPY runpod_handler_basic.py .
 
 # Create directories for uploads and outputs
 RUN mkdir -p /app/uploads /app/outputs
 
-# Run the ultra-debug handler
-CMD ["python", "-u", "runpod_handler_debug.py"]
+# Run the basic handler
+CMD ["python", "-u", "runpod_handler_basic.py"]
