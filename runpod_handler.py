@@ -53,12 +53,17 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
     temp_demucs_dir = None
     
     try:
+        logger.info("=== SEPARATE_STEMS STARTED ===")
+        logger.info(f"Audio data size: {len(audio_data)} bytes")
+        logger.info(f"Requested stems: {stems}")
+        logger.info(f"Device: {device}")
+        
         # Create temporary file for input audio
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_input:
             temp_input.write(audio_data)
             temp_input_path = temp_input.name
         
-        logger.info(f"Processing audio file: {temp_input_path}")
+        logger.info(f"Created temp file: {temp_input_path}")
         
         # Load and preprocess audio
         waveform, sample_rate = torchaudio.load(temp_input_path)
@@ -90,19 +95,26 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             # Run demucs separation
             logger.info("Running Demucs separation...")
             demucs.separate.main()
+            logger.info("Demucs separation completed")
             
             # Find output files
+            logger.info(f"Searching for output in: {temp_demucs_dir}")
             song_dirs = glob.glob(os.path.join(temp_demucs_dir, 'htdemucs_6s', '*'))
-            if not song_dirs:
-                song_dirs = glob.glob(os.path.join(temp_demucs_dir, 'htdemucs', '*'))
+            logger.info(f"Found htdemucs_6s dirs: {song_dirs}")
             
             if not song_dirs:
+                song_dirs = glob.glob(os.path.join(temp_demucs_dir, 'htdemucs', '*'))
+                logger.info(f"Found htdemucs dirs: {song_dirs}")
+            
+            if not song_dirs:
+                logger.error("No Demucs output directories found")
                 raise ValueError("No Demucs output found")
             
             demucs_output_dir = song_dirs[0]
-            stem_files = glob.glob(os.path.join(demucs_output_dir, '*.wav'))
+            logger.info(f"Using output dir: {demucs_output_dir}")
             
-            logger.info(f"Found {len(stem_files)} stem files")
+            stem_files = glob.glob(os.path.join(demucs_output_dir, '*.wav'))
+            logger.info(f"Found {len(stem_files)} stem files: {[os.path.basename(f) for f in stem_files]}")
             
             # Map stem files to requested stems
             available_stems = {}
@@ -141,6 +153,9 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                 "stems": result_stems,
                 "available_stems": list(available_stems.keys())
             }
+            logger.info(f"=== SEPARATION SUCCESS ===")
+            logger.info(f"Result stems count: {len(result_stems)}")
+            logger.info(f"Available stems: {result['available_stems']}")
             
         finally:
             # Restore sys.argv
@@ -162,14 +177,22 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         
+        logger.info(f"=== RETURNING RESULT ===")
+        logger.info(f"Result type: {type(result)}")
+        logger.info(f"Result success: {result.get('success', 'unknown')}")
         return result
     
     except Exception as e:
-        logger.error(f"Error during stem separation: {e}")
-        return {
+        logger.error(f"=== SEPARATION EXCEPTION ===")
+        logger.error(f"Exception: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        error_result = {
             "success": False,
             "error": str(e)
         }
+        logger.info(f"Returning error result: {error_result}")
+        return error_result
 
 def handler(event):
     """
@@ -184,49 +207,70 @@ def handler(event):
     }
     """
     try:
+        logger.info("=== HANDLER STARTED ===")
+        
         # Initialize device
+        logger.info("Initializing device...")
         device = initialize()
+        logger.info(f"Device initialized: {device}")
         
         # Get input data
         input_data = event.get("input", {})
+        logger.info(f"Input data keys: {list(input_data.keys())}")
         
         # Validate input
         if "audio_file" not in input_data:
+            logger.error("Missing audio_file in input")
             return {"error": "Missing audio_file in input"}
         
         # Get stems list (default to all)
         stems = input_data.get("stems", ["vocals", "bass", "drums", "other"])
+        logger.info(f"Requested stems: {stems}")
         
         # Decode base64 audio data
         try:
             audio_b64 = input_data["audio_file"]
+            logger.info(f"Audio data length: {len(audio_b64)} characters")
             audio_data = base64.b64decode(audio_b64)
+            logger.info(f"Decoded audio size: {len(audio_data)} bytes")
         except Exception as e:
+            logger.error(f"Failed to decode audio data: {e}")
             return {"error": f"Failed to decode audio data: {str(e)}"}
         
-        logger.info(f"Processing separation request for stems: {stems}")
+        logger.info(f"Starting stem separation for stems: {stems}")
         
         # Perform stem separation
         result = separate_stems(audio_data, stems, device)
+        logger.info(f"Separation result keys: {list(result.keys()) if isinstance(result, dict) else 'not dict'}")
         
         if result["success"]:
-            logger.info("Separation completed successfully")
+            logger.info("=== HANDLER SUCCESS ===")
             response = {
                 "status": "completed",
                 "stems": result["stems"],
                 "available_stems": result["available_stems"]
             }
-            logger.info(f"Returning successful response with {len(result['stems'])} stems")
+            logger.info(f"Final response stems count: {len(result['stems'])}")
+            logger.info(f"Final response keys: {list(response.keys())}")
+            logger.info("=== HANDLER RETURNING SUCCESS ===")
             return response
         else:
+            logger.error(f"=== HANDLER FAILURE ===")
             logger.error(f"Separation failed: {result['error']}")
             error_response = {"error": result["error"]}
             logger.info(f"Returning error response: {error_response}")
+            logger.info("=== HANDLER RETURNING ERROR ===")
             return error_response
     
     except Exception as e:
+        logger.error(f"=== HANDLER EXCEPTION ===")
         logger.error(f"Handler error: {e}")
-        return {"error": f"Handler error: {str(e)}"}
+        import traceback
+        logger.error(f"Handler traceback: {traceback.format_exc()}")
+        final_error = {"error": f"Handler error: {str(e)}"}
+        logger.info(f"Returning final error: {final_error}")
+        logger.info("=== HANDLER RETURNING EXCEPTION ===")
+        return final_error
 
 # Initialize RunPod serverless
 runpod.serverless.start({"handler": handler})
