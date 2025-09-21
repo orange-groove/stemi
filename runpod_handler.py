@@ -131,7 +131,7 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                 else:
                     logger.warning(f"Requested stem '{stem}' not found in output")
             
-            return {
+            result = {
                 "success": True,
                 "stems": result_stems,
                 "available_stems": list(available_stems.keys())
@@ -141,13 +141,23 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             # Restore sys.argv
             sys.argv = original_argv
             
-            # Clean up temporary files
-            os.unlink(temp_input_path)
-            shutil.rmtree(temp_demucs_dir)
+            # Clean up temporary files safely
+            try:
+                if os.path.exists(temp_input_path):
+                    os.unlink(temp_input_path)
+            except:
+                pass
+            try:
+                if os.path.exists(temp_demucs_dir):
+                    shutil.rmtree(temp_demucs_dir)
+            except:
+                pass
             
             # Clear GPU memory
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+        
+        return result
     
     except Exception as e:
         logger.error(f"Error during stem separation: {e}")
