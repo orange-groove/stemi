@@ -78,6 +78,47 @@ class SupabaseStemStorage:
         
         return public_urls
     
+    def upload_stems_from_bytes(self, job_id: str, stem_files: Dict[str, 'io.BytesIO']) -> Dict[str, str]:
+        """
+        Upload processed stems from BytesIO objects to Supabase storage
+        
+        Args:
+            job_id: Unique job identifier
+            stem_files: Dict of {stem_name: BytesIO_object}
+            
+        Returns:
+            Dict of {stem_name: public_url}
+        """
+        import io
+        public_urls = {}
+        
+        for stem_name, stem_buffer in stem_files.items():
+            try:
+                # Generate storage path
+                storage_path = f"stems/{job_id}/{stem_name}.wav"
+                
+                # Upload file to Supabase
+                result = self.supabase.storage.from_(self.bucket_name).upload(
+                    file=stem_buffer.getvalue(),
+                    path=storage_path,
+                    file_options={"content-type": "audio/wav"}
+                )
+                
+                if result.data:
+                    # Get public URL
+                    public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(storage_path)
+                    public_urls[stem_name] = public_url
+                    logger.info(f"Uploaded {stem_name} to Supabase: {storage_path}")
+                else:
+                    logger.error(f"Supabase upload failed for {stem_name}: {result.error}")
+                    raise Exception(f"Upload failed: {result.error}")
+                    
+            except Exception as e:
+                logger.error(f"Error uploading {stem_name}: {e}")
+                raise
+        
+        return public_urls
+    
     def get_stem_urls(self, job_id: str) -> Dict[str, str]:
         """Get public URLs for all stems in a job"""
         try:

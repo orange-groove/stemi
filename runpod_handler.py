@@ -17,6 +17,10 @@ import base64
 import io
 from pathlib import Path
 import logging
+# Import the existing Supabase integration
+import sys
+sys.path.append('.')
+from supabase_integration import SupabaseStemStorage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -123,8 +127,25 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                 if stem_name in ['vocals', 'bass', 'drums', 'other', 'guitar', 'piano']:
                     available_stems[stem_name] = stem_file
             
-            # Encode requested stems as base64
-            result_stems = {}
+            # Upload requested stems to Supabase and get URLs
+            logger.info("=== UPLOADING STEMS TO SUPABASE ===")
+            
+            # Initialize Supabase uploader
+            try:
+                supabase_uploader = SupabaseStemStorage()
+                logger.info("Supabase uploader initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Supabase uploader: {e}")
+                # Fallback to base64 if Supabase fails
+                result = {
+                    "success": False,
+                    "error": f"Supabase initialization failed: {e}",
+                    "available_stems": list(available_stems.keys())
+                }
+                return result
+            
+            # Prepare stem buffers for upload
+            stem_buffers = {}
             for stem in stems:
                 if stem in available_stems:
                     # Read the stem file
@@ -135,8 +156,6 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                     if stem_numpy.shape[0] == 1:
                         stem_numpy = np.repeat(stem_numpy, 2, axis=0)
                     
-                    # Save to bytes buffer as WAV with compression
-                    buffer = io.BytesIO()
                     # Reduce sample rate to save memory (44.1kHz -> 22kHz)
                     if sr > 22050:
                         import torchaudio.transforms as T
@@ -147,29 +166,48 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                         if stem_numpy.shape[0] == 1:
                             stem_numpy = np.repeat(stem_numpy, 2, axis=0)
                     
+                    # Save to bytes buffer as WAV
+                    buffer = io.BytesIO()
                     sf.write(buffer, stem_numpy.T, sr, format='WAV')
                     buffer.seek(0)
                     
-                    # Get WAV data and check size
-                    wav_data = buffer.getvalue()
-                    logger.info(f"WAV data size for {stem}: {len(wav_data)} bytes")
-                    
-                    # Encode as base64
-                    stem_b64 = base64.b64encode(wav_data).decode('utf-8')
-                    result_stems[stem] = stem_b64
-                    logger.info(f"Base64 size for {stem}: {len(stem_b64)} chars")
-                    
-                    logger.info(f"Encoded {stem} stem")
+                    # Store buffer for upload
+                    stem_buffers[stem] = buffer
+                    logger.info(f"Prepared {stem} stem buffer ({len(buffer.getvalue())} bytes)")
                 else:
                     logger.warning(f"Requested stem '{stem}' not found in output")
             
+            # Upload all stems to Supabase
+            try:
+                # Generate a unique job ID for this request
+                import uuid
+                job_id = str(uuid.uuid4())
+                logger.info(f"Generated job ID: {job_id}")
+                
+                # Upload stems and get URLs
+                stem_urls = supabase_uploader.upload_stems_from_bytes(job_id, stem_buffers)
+                logger.info(f"Successfully uploaded {len(stem_urls)} stems to Supabase")
+                
+            except Exception as e:
+                logger.error(f"Failed to upload stems to Supabase: {e}")
+                # Return error if upload fails
+                result = {
+                    "success": False,
+                    "error": f"Supabase upload failed: {e}",
+                    "available_stems": list(available_stems.keys())
+                }
+                return result
+            
             result = {
                 "success": True,
-                "stems": result_stems,
+                "job_id": job_id,
+                "stem_urls": stem_urls,
                 "available_stems": list(available_stems.keys())
             }
             logger.info(f"=== SEPARATION SUCCESS ===")
-            logger.info(f"Result stems count: {len(result_stems)}")
+            logger.info(f"Job ID: {job_id}")
+            logger.info(f"Uploaded stems: {list(stem_urls.keys())}")
+            logger.info(f"Stem URLs: {stem_urls}")
             logger.info(f"Available stems: {result['available_stems']}")
             
             # Return success result immediately

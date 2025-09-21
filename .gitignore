@@ -1,1 +1,14 @@
 .env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Test files  
+*.mp3
+*.wav
+test_demucs_local.py
+
+# OS files
+.DS_Store

@@ -22,8 +22,9 @@ COPY runpod_requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r runpod_requirements.txt
 
-# Copy the fixed RunPod handler
+# Copy the RunPod handler and Supabase integration
 COPY runpod_handler.py .
+COPY supabase_integration.py .
 
 # Create directories for uploads and outputs
 RUN mkdir -p /app/uploads /app/outputs

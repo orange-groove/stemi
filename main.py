@@ -115,11 +115,17 @@ async def sync_runpod_jobs():
                         job.completed_at = datetime.now()
                         job.result = status_response.get("output", {})
                         
-                        # Upload to Supabase if available and stems exist
-                        if (SUPABASE_AVAILABLE and supabase_storage and 
-                            job.result and "stems" in job.result and job.result["stems"]):
+                        # Check if RunPod already uploaded to Supabase
+                        if job.result and "stem_urls" in job.result:
+                            # RunPod handler already uploaded to Supabase
+                            job.supabase_urls = job.result["stem_urls"]
+                            logger.info(f"RunPod handler uploaded {len(job.supabase_urls)} stems to Supabase for job {job.job_id}")
+                        
+                        # Legacy: Upload to Supabase if we have base64 stems (fallback)
+                        elif (SUPABASE_AVAILABLE and supabase_storage and 
+                              job.result and "stems" in job.result and job.result["stems"]):
                             try:
-                                logger.info(f"Uploading stems to Supabase for job {job.job_id}")
+                                logger.info(f"Uploading base64 stems to Supabase for job {job.job_id}")
                                 
                                 # Convert base64 stems to files and upload
                                 import base64
@@ -132,7 +138,7 @@ async def sync_runpod_jobs():
                                     stem_files[stem_name] = io.BytesIO(stem_bytes)
                                 
                                 # Upload to Supabase and get URLs
-                                urls = supabase_storage.upload_stems(job.job_id, stem_files)
+                                urls = supabase_storage.upload_stems_from_bytes(job.job_id, stem_files)
                                 job.supabase_urls = urls
                                 
                                 logger.info(f"Successfully uploaded {len(urls)} stems to Supabase for job {job.job_id}")
