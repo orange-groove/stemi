@@ -135,14 +135,29 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                     if stem_numpy.shape[0] == 1:
                         stem_numpy = np.repeat(stem_numpy, 2, axis=0)
                     
-                    # Save to bytes buffer as WAV
+                    # Save to bytes buffer as WAV with compression
                     buffer = io.BytesIO()
+                    # Reduce sample rate to save memory (44.1kHz -> 22kHz)
+                    if sr > 22050:
+                        import torchaudio.transforms as T
+                        resampler = T.Resample(sr, 22050)
+                        stem_audio = resampler(stem_audio)
+                        sr = 22050
+                        stem_numpy = stem_audio.cpu().numpy()
+                        if stem_numpy.shape[0] == 1:
+                            stem_numpy = np.repeat(stem_numpy, 2, axis=0)
+                    
                     sf.write(buffer, stem_numpy.T, sr, format='WAV')
                     buffer.seek(0)
                     
+                    # Get WAV data and check size
+                    wav_data = buffer.getvalue()
+                    logger.info(f"WAV data size for {stem}: {len(wav_data)} bytes")
+                    
                     # Encode as base64
-                    stem_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    stem_b64 = base64.b64encode(wav_data).decode('utf-8')
                     result_stems[stem] = stem_b64
+                    logger.info(f"Base64 size for {stem}: {len(stem_b64)} chars")
                     
                     logger.info(f"Encoded {stem} stem")
                 else:
