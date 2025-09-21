@@ -128,19 +128,20 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             # Upload requested stems to Supabase and get URLs
             logger.info("=== UPLOADING STEMS TO SUPABASE ===")
             
-            # Initialize lightweight Supabase client
+            # Debug: Check environment variables
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_ANON_KEY")
+            logger.info(f"Environment check - SUPABASE_URL: {'SET' if supabase_url else 'NOT SET'}")
+            logger.info(f"Environment check - SUPABASE_ANON_KEY: {'SET' if supabase_key else 'NOT SET'}")
+            
+            # Try to initialize Supabase client, fallback to base64 if it fails
+            supabase_client = None
             try:
                 supabase_client = LightweightSupabaseClient()
                 logger.info("Lightweight Supabase client initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize Supabase client: {e}")
-                # Fallback to base64 if Supabase fails
-                result = {
-                    "success": False,
-                    "error": f"Supabase initialization failed: {e}",
-                    "available_stems": list(available_stems.keys())
-                }
-                return result
+                logger.warning(f"Supabase client initialization failed: {e}")
+                logger.info("Falling back to base64 response mode")
             
             # Prepare stem buffers for upload
             stem_buffers = {}
@@ -175,37 +176,60 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                 else:
                     logger.warning(f"Requested stem '{stem}' not found in output")
             
-            # Upload all stems to Supabase
-            try:
-                # Generate a unique job ID for this request
-                import uuid
-                job_id = str(uuid.uuid4())
-                logger.info(f"Generated job ID: {job_id}")
-                
-                # Upload stems and get URLs
-                stem_urls = supabase_client.upload_stems(job_id, stem_buffers)
-                logger.info(f"Successfully uploaded {len(stem_urls)} stems to Supabase")
-                
-            except Exception as e:
-                logger.error(f"Failed to upload stems to Supabase: {e}")
-                # Return error if upload fails
-                result = {
-                    "success": False,
-                    "error": f"Supabase upload failed: {e}",
-                    "available_stems": list(available_stems.keys())
-                }
-                return result
+            # Generate a unique job ID for this request
+            import uuid
+            job_id = str(uuid.uuid4())
+            logger.info(f"Generated job ID: {job_id}")
             
-            result = {
-                "success": True,
-                "job_id": job_id,
-                "stem_urls": stem_urls,
-                "available_stems": list(available_stems.keys())
-            }
+            # Try Supabase upload, fallback to base64 if it fails
+            if supabase_client:
+                try:
+                    # Upload stems and get URLs
+                    stem_urls = supabase_client.upload_stems(job_id, stem_buffers)
+                    logger.info(f"Successfully uploaded {len(stem_urls)} stems to Supabase")
+                    
+                    # Return Supabase URLs
+                    result = {
+                        "success": True,
+                        "job_id": job_id,
+                        "stem_urls": stem_urls,
+                        "available_stems": list(available_stems.keys()),
+                        "storage_type": "supabase"
+                    }
+                    
+                except Exception as e:
+                    logger.error(f"Failed to upload stems to Supabase: {e}")
+                    logger.info("Falling back to base64 mode due to upload failure")
+                    supabase_client = None  # Force fallback
+            
+            # Fallback to base64 if Supabase is not available
+            if not supabase_client:
+                logger.info("Using base64 fallback mode")
+                result_stems = {}
+                
+                for stem_name, buffer in stem_buffers.items():
+                    # Encode as base64
+                    stem_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    result_stems[stem_name] = stem_b64
+                    logger.info(f"Encoded {stem_name} as base64 ({len(stem_b64)} chars)")
+                
+                # Return base64 stems
+                result = {
+                    "success": True,
+                    "job_id": job_id,
+                    "stems": result_stems,
+                    "available_stems": list(available_stems.keys()),
+                    "storage_type": "base64"
+                }
+            
             logger.info(f"=== SEPARATION SUCCESS ===")
             logger.info(f"Job ID: {job_id}")
-            logger.info(f"Uploaded stems: {list(stem_urls.keys())}")
-            logger.info(f"Stem URLs: {stem_urls}")
+            logger.info(f"Storage type: {result.get('storage_type', 'unknown')}")
+            if result.get('storage_type') == 'supabase':
+                logger.info(f"Uploaded stems: {list(result.get('stem_urls', {}).keys())}")
+                logger.info(f"Stem URLs: {result.get('stem_urls', {})}")
+            else:
+                logger.info(f"Base64 stems: {list(result.get('stems', {}).keys())}")
             logger.info(f"Available stems: {result['available_stems']}")
             
             # Return success result immediately
