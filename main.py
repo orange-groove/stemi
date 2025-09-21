@@ -10,6 +10,8 @@ import logging
 from enum import Enum
 from datetime import datetime
 
+# Environment variables will be loaded from system or docker environment
+
 # Configure logging first
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +24,14 @@ except ImportError:
     RUNPOD_AVAILABLE = False
     create_runpod_client = None
     RunPodClient = None
+
+try:
+    from supabase_integration import SupabaseStemStorage
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    logger.warning("Supabase integration not available - stems will only be downloadable via API")
+    SUPABASE_AVAILABLE = False
+    SupabaseStemStorage = None
 
 # Job status tracking (simplified for RunPod)
 class JobStatus(str, Enum):
@@ -41,6 +51,7 @@ class RunPodJob:
         self.completed_at = None
         self.result = None
         self.error = None
+        self.supabase_urls = None  # Will store Supabase URLs when uploaded
 
 # Job tracking
 active_jobs = {}  # job_id -> RunPodJob
@@ -62,6 +73,7 @@ app.add_middleware(
 
 # Global variables
 runpod_client = None
+supabase_storage = None
 
 # Initialize directories (support both local and Docker environments)
 UPLOAD_DIR = Path("uploads") if not Path("/app").exists() else Path("/app/uploads")
@@ -102,6 +114,32 @@ async def sync_runpod_jobs():
                         job.status = JobStatus.COMPLETED
                         job.completed_at = datetime.now()
                         job.result = status_response.get("output", {})
+                        
+                        # Upload to Supabase if available and stems exist
+                        if (SUPABASE_AVAILABLE and supabase_storage and 
+                            job.result and "stems" in job.result and job.result["stems"]):
+                            try:
+                                logger.info(f"Uploading stems to Supabase for job {job.job_id}")
+                                
+                                # Convert base64 stems to files and upload
+                                import base64
+                                import io
+                                stem_files = {}
+                                
+                                for stem_name, stem_b64 in job.result["stems"].items():
+                                    # Decode base64 to bytes
+                                    stem_bytes = base64.b64decode(stem_b64)
+                                    stem_files[stem_name] = io.BytesIO(stem_bytes)
+                                
+                                # Upload to Supabase and get URLs
+                                urls = supabase_storage.upload_stems(job.job_id, stem_files)
+                                job.supabase_urls = urls
+                                
+                                logger.info(f"Successfully uploaded {len(urls)} stems to Supabase for job {job.job_id}")
+                                
+                            except Exception as e:
+                                logger.error(f"Failed to upload stems to Supabase for job {job.job_id}: {e}")
+                                # Don't fail the job, just log the error
                     elif runpod_status == "FAILED":
                         job.status = JobStatus.FAILED
                         job.error = status_response.get("error", "Unknown error")
@@ -119,7 +157,7 @@ async def sync_runpod_jobs():
 @app.on_event("startup")
 async def startup_event():
     """Initialize RunPod client and background tasks"""
-    global runpod_client
+    global runpod_client, supabase_storage
     
     try:
         if RUNPOD_AVAILABLE:
@@ -136,10 +174,30 @@ async def startup_event():
             logger.warning("RunPod not available - running in local mode only")
             runpod_client = None
         
+        # Initialize Supabase storage
+        if SUPABASE_AVAILABLE:
+            try:
+                # Debug: Show what environment variables we have
+                supabase_url = os.getenv("SUPABASE_URL")
+                supabase_anon_key = os.getenv("SUPABASE_ANON_KEY")
+                
+                logger.info(f"Supabase URL: {supabase_url[:30] + '...' if supabase_url else 'Not set'}")
+                logger.info(f"Supabase Anon Key: {'Set' if supabase_anon_key else 'Not set'}")
+                
+                supabase_storage = SupabaseStemStorage()
+                logger.info("Supabase storage initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Supabase storage: {e}")
+                supabase_storage = None
+        else:
+            logger.info("Supabase not available - stems will only be downloadable via API")
+            supabase_storage = None
+        
     except Exception as e:
         logger.error(f"Failed to initialize: {e}")
-        # Don't raise the error - continue running without RunPod
+        # Don't raise the error - continue running
         runpod_client = None
+        supabase_storage = None
 
 @app.get("/")
 async def root():
@@ -157,6 +215,8 @@ async def health_check():
         "status": "healthy",
         "runpod_available": RUNPOD_AVAILABLE and runpod_client is not None,
         "runpod_sdk_installed": RUNPOD_AVAILABLE,
+        "supabase_available": SUPABASE_AVAILABLE and supabase_storage is not None,
+        "supabase_sdk_installed": SUPABASE_AVAILABLE,
         "active_jobs": len(active_jobs)
     }
 
@@ -314,6 +374,13 @@ async def get_job_status(job_id: str):
                 "stems_available": stems_available,
                 "download_info": "Use /download/{job_id}/{stem} to download individual stems"
             })
+            
+            # Include Supabase URLs if available
+            if job.supabase_urls:
+                response.update({
+                    "supabase_urls": job.supabase_urls,
+                    "storage_info": "Stems are available via Supabase URLs (recommended) or download endpoints"
+                })
         else:
             response["message"] = "Job completed but no result available"
     elif job.status == JobStatus.FAILED:
