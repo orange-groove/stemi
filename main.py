@@ -55,9 +55,9 @@ app.add_middleware(
 # Global variables
 runpod_client = None
 
-# Initialize directories
-UPLOAD_DIR = Path("/app/uploads")
-OUTPUT_DIR = Path("/app/outputs")
+# Initialize directories (support both local and Docker environments)
+UPLOAD_DIR = Path("uploads") if not Path("/app").exists() else Path("/app/uploads")
+OUTPUT_DIR = Path("outputs") if not Path("/app").exists() else Path("/app/outputs")
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
