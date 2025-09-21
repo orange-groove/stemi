@@ -6,5 +6,5 @@ demucs==4.0.0
 librosa==0.10.1
 soundfile==0.12.1
 numpy<2.0.0
-# Supabase integration
-supabase==2.3.0
+# Lightweight HTTP client for Supabase API
+requests==2.31.0

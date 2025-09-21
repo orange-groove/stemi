@@ -17,10 +17,8 @@ import base64
 import io
 from pathlib import Path
 import logging
-# Import the existing Supabase integration
-import sys
-sys.path.append('.')
-from supabase_integration import SupabaseStemStorage
+# Import lightweight Supabase client for RunPod
+from lightweight_supabase import LightweightSupabaseClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -130,12 +128,12 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             # Upload requested stems to Supabase and get URLs
             logger.info("=== UPLOADING STEMS TO SUPABASE ===")
             
-            # Initialize Supabase uploader
+            # Initialize lightweight Supabase client
             try:
-                supabase_uploader = SupabaseStemStorage()
-                logger.info("Supabase uploader initialized successfully")
+                supabase_client = LightweightSupabaseClient()
+                logger.info("Lightweight Supabase client initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize Supabase uploader: {e}")
+                logger.error(f"Failed to initialize Supabase client: {e}")
                 # Fallback to base64 if Supabase fails
                 result = {
                     "success": False,
@@ -185,7 +183,7 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                 logger.info(f"Generated job ID: {job_id}")
                 
                 # Upload stems and get URLs
-                stem_urls = supabase_uploader.upload_stems_from_bytes(job_id, stem_buffers)
+                stem_urls = supabase_client.upload_stems(job_id, stem_buffers)
                 logger.info(f"Successfully uploaded {len(stem_urls)} stems to Supabase")
                 
             except Exception as e:
