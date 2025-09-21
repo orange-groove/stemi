@@ -1,0 +1,8 @@
+# Requirements for RunPod Serverless Handler
+runpod==1.6.2
+torch==2.2.0
+torchaudio==2.2.0
+demucs==4.0.0
+librosa==0.10.1
+soundfile==0.12.1
+numpy<2.0.0
