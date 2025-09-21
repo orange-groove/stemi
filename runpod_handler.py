@@ -126,7 +126,7 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
                     available_stems[stem_name] = stem_file
             
             # Upload requested stems to Supabase and get URLs
-            logger.info("=== UPLOADING STEMS TO SUPABASE ===")
+            logger.info("=== PROCESSING STEMS FOR STORAGE ===")
             
             # Debug: Check environment variables
             supabase_url = os.getenv("SUPABASE_URL")
