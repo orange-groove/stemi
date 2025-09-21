@@ -9,11 +9,19 @@ from typing import List, Optional
 import logging
 from enum import Enum
 from datetime import datetime
-from runpod_client import create_runpod_client, RunPodClient
 
-# Configure logging
+# Configure logging first
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+try:
+    from runpod_client import create_runpod_client, RunPodClient
+    RUNPOD_AVAILABLE = True
+except ImportError:
+    logger.warning("RunPod client not available - install runpod package for full functionality")
+    RUNPOD_AVAILABLE = False
+    create_runpod_client = None
+    RunPodClient = None
 
 # Job status tracking (simplified for RunPod)
 class JobStatus(str, Enum):
@@ -114,20 +122,24 @@ async def startup_event():
     global runpod_client
     
     try:
-        # Initialize RunPod client
-        runpod_client = create_runpod_client()
-        if runpod_client:
-            logger.info("RunPod client initialized successfully")
+        if RUNPOD_AVAILABLE:
+            # Initialize RunPod client
+            runpod_client = create_runpod_client()
+            if runpod_client:
+                logger.info("RunPod client initialized successfully")
+                # Start background job status sync
+                asyncio.create_task(sync_runpod_jobs())
+                logger.info("Background RunPod sync started")
+            else:
+                logger.warning("RunPod credentials not found - separation will not work")
         else:
-            logger.warning("RunPod credentials not found - separation will not work")
-        
-        # Start background job status sync
-        asyncio.create_task(sync_runpod_jobs())
-        logger.info("Background RunPod sync started")
+            logger.warning("RunPod not available - running in local mode only")
+            runpod_client = None
         
     except Exception as e:
         logger.error(f"Failed to initialize: {e}")
-        raise e
+        # Don't raise the error - continue running without RunPod
+        runpod_client = None
 
 @app.get("/")
 async def root():
@@ -135,7 +147,7 @@ async def root():
     return {
         "message": "STEMI Separation Service",
         "status": "running",
-        "runpod_available": runpod_client is not None
+        "runpod_available": RUNPOD_AVAILABLE and runpod_client is not None
     }
 
 @app.get("/health")
@@ -143,7 +155,8 @@ async def health_check():
     """Detailed health check"""
     return {
         "status": "healthy",
-        "runpod_available": runpod_client is not None,
+        "runpod_available": RUNPOD_AVAILABLE and runpod_client is not None,
+        "runpod_sdk_installed": RUNPOD_AVAILABLE,
         "active_jobs": len(active_jobs)
     }
 
@@ -156,8 +169,11 @@ async def separate_audio(
     Upload an audio file and submit it to RunPod for stem separation
     """
     try:
+        if not RUNPOD_AVAILABLE:
+            raise HTTPException(status_code=503, detail="RunPod SDK not installed - this endpoint requires RunPod integration")
+        
         if not runpod_client:
-            raise HTTPException(status_code=503, detail="RunPod service not available")
+            raise HTTPException(status_code=503, detail="RunPod service not available - check credentials")
         
         # Validate file type
         if not file.content_type.startswith("audio/"):
