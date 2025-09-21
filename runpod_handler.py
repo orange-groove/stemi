@@ -172,6 +172,10 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             logger.info(f"Result stems count: {len(result_stems)}")
             logger.info(f"Available stems: {result['available_stems']}")
             
+            # Return success result immediately
+            logger.info(f"=== RETURNING SUCCESS RESULT ===")
+            return result
+            
         finally:
             # Restore sys.argv
             sys.argv = original_argv
@@ -192,10 +196,11 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         
-        logger.info(f"=== RETURNING RESULT ===")
-        logger.info(f"Result type: {type(result)}")
-        logger.info(f"Result success: {result.get('success', 'unknown')}")
-        return result
+        # This point should never be reached if success result was returned
+        logger.error(f"=== UNEXPECTED: REACHED END WITHOUT RETURN ===")
+        logger.error(f"Result type: {type(result)}")
+        logger.error(f"Result success: {result.get('success', 'unknown')}")
+        return {"error": "Unexpected: reached end of function without proper return"}
     
     except Exception as e:
         logger.error(f"=== SEPARATION EXCEPTION ===")
