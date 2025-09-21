@@ -27,7 +27,7 @@ class LightweightSupabaseClient:
             "apikey": self.supabase_key,
         }
         
-        logger.info("Lightweight Supabase client initialized")
+        logger.info("Lightweight Supabase client initialized successfully")
 
     def upload_file(self, file_path: str, file_data: bytes, content_type: str = "audio/wav") -> str:
         """
