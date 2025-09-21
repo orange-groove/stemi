@@ -47,6 +47,11 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
     Returns:
         dict: Base64 encoded stems
     """
+    # Initialize result variable
+    result = {"success": False, "error": "Unknown error"}
+    temp_input_path = None
+    temp_demucs_dir = None
+    
     try:
         # Create temporary file for input audio
         with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_input:
@@ -143,12 +148,12 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             
             # Clean up temporary files safely
             try:
-                if os.path.exists(temp_input_path):
+                if temp_input_path and os.path.exists(temp_input_path):
                     os.unlink(temp_input_path)
             except:
                 pass
             try:
-                if os.path.exists(temp_demucs_dir):
+                if temp_demucs_dir and os.path.exists(temp_demucs_dir):
                     shutil.rmtree(temp_demucs_dir)
             except:
                 pass
@@ -206,14 +211,18 @@ def handler(event):
         
         if result["success"]:
             logger.info("Separation completed successfully")
-            return {
+            response = {
                 "status": "completed",
                 "stems": result["stems"],
                 "available_stems": result["available_stems"]
             }
+            logger.info(f"Returning successful response with {len(result['stems'])} stems")
+            return response
         else:
             logger.error(f"Separation failed: {result['error']}")
-            return {"error": result["error"]}
+            error_response = {"error": result["error"]}
+            logger.info(f"Returning error response: {error_response}")
+            return error_response
     
     except Exception as e:
         logger.error(f"Handler error: {e}")
