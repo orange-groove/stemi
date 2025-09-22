@@ -121,9 +121,10 @@ async def sync_runpod_jobs():
                             job.supabase_urls = job.result["stem_urls"]
                             logger.info(f"RunPod handler uploaded {len(job.supabase_urls)} stems to Supabase for job {job.job_id}")
                         
-                        # Legacy: Upload to Supabase if we have base64 stems (fallback)
+                        # Legacy: Upload to Supabase if we have base64 stems (fallback mode)
                         elif (SUPABASE_AVAILABLE and supabase_storage and 
-                              job.result and "stems" in job.result and job.result["stems"]):
+                              job.result and "stems" in job.result and job.result["stems"] and
+                              job.result.get("storage_type") == "base64"):
                             try:
                                 logger.info(f"Uploading base64 stems to Supabase for job {job.job_id}")
                                 
