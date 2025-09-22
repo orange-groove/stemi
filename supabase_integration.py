@@ -63,8 +63,9 @@ class SupabaseStemStorage:
                         }
                     )
                 
-                if result.get("error"):
-                    raise Exception(f"Upload error: {result['error']}")
+                # Check if upload was successful (no error means success)
+                if hasattr(result, 'error') and result.error:
+                    raise Exception(f"Upload error: {result.error}")
                 
                 # Get public URL
                 public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(storage_path)
