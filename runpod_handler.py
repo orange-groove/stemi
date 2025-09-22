@@ -134,14 +134,13 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             logger.info(f"Environment check - SUPABASE_URL: {'SET' if supabase_url else 'NOT SET'}")
             logger.info(f"Environment check - SUPABASE_ANON_KEY: {'SET' if supabase_key else 'NOT SET'}")
             
-            # Try to initialize Supabase client, fallback to base64 if it fails
-            supabase_client = None
+            # Initialize Supabase client (no fallback - must work)
             try:
                 supabase_client = LightweightSupabaseClient()
                 logger.info("Lightweight Supabase client initialized successfully")
             except Exception as e:
-                logger.warning(f"Supabase client initialization failed: {e}")
-                logger.info("Falling back to base64 response mode")
+                logger.error(f"Supabase client initialization failed: {e}")
+                raise Exception(f"Failed to initialize Supabase client: {e}")
             
             # Prepare stem buffers for upload
             stem_buffers = {}
@@ -181,55 +180,30 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             job_id = str(uuid.uuid4())
             logger.info(f"Generated job ID: {job_id}")
             
-            # Try Supabase upload, fallback to base64 if it fails
-            if supabase_client:
-                try:
-                    # Upload stems and get URLs
-                    stem_urls = supabase_client.upload_stems(job_id, stem_buffers)
-                    logger.info(f"Successfully uploaded {len(stem_urls)} stems to Supabase")
-                    
-                    # Return Supabase URLs
-                    result = {
-                        "success": True,
-                        "job_id": job_id,
-                        "stem_urls": stem_urls,
-                        "available_stems": list(available_stems.keys()),
-                        "storage_type": "supabase"
-                    }
-                    
-                except Exception as e:
-                    logger.error(f"Failed to upload stems to Supabase: {e}")
-                    logger.info("Falling back to base64 mode due to upload failure")
-                    supabase_client = None  # Force fallback
-            
-            # Fallback to base64 if Supabase is not available
-            if not supabase_client:
-                logger.info("Using base64 fallback mode")
-                result_stems = {}
+            # Upload stems to Supabase (no fallback)
+            try:
+                # Upload stems and get URLs
+                stem_urls = supabase_client.upload_stems(job_id, stem_buffers)
+                logger.info(f"Successfully uploaded {len(stem_urls)} stems to Supabase")
                 
-                for stem_name, buffer in stem_buffers.items():
-                    # Encode as base64
-                    stem_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                    result_stems[stem_name] = stem_b64
-                    logger.info(f"Encoded {stem_name} as base64 ({len(stem_b64)} chars)")
-                
-                # Return base64 stems
+                # Return Supabase URLs
                 result = {
                     "success": True,
                     "job_id": job_id,
-                    "stems": result_stems,
+                    "stem_urls": stem_urls,
                     "available_stems": list(available_stems.keys()),
-                    "storage_type": "base64"
+                    "storage_type": "supabase"
                 }
+                
+            except Exception as e:
+                logger.error(f"Failed to upload stems to Supabase: {e}")
+                raise Exception(f"Supabase upload failed: {e}")
             
             logger.info(f"=== SEPARATION SUCCESS ===")
             logger.info(f"Job ID: {job_id}")
-            logger.info(f"Storage type: {result.get('storage_type', 'unknown')}")
-            if result.get('storage_type') == 'supabase':
-                logger.info(f"Uploaded stems: {list(result.get('stem_urls', {}).keys())}")
-                logger.info(f"Stem URLs: {result.get('stem_urls', {})}")
-            else:
-                logger.info(f"Base64 stems: {list(result.get('stems', {}).keys())}")
+            logger.info(f"Storage type: supabase")
+            logger.info(f"Uploaded stems: {list(result.get('stem_urls', {}).keys())}")
+            logger.info(f"Stem URLs: {result.get('stem_urls', {})}")
             logger.info(f"Available stems: {result['available_stems']}")
             
             # Return success result immediately
@@ -327,10 +301,11 @@ def handler(event):
             logger.info("=== HANDLER SUCCESS ===")
             response = {
                 "status": "completed",
-                "stems": result["stems"],
-                "available_stems": result["available_stems"]
+                "stem_urls": result["stem_urls"],
+                "available_stems": result["available_stems"],
+                "storage_type": result["storage_type"]
             }
-            logger.info(f"Final response stems count: {len(result['stems'])}")
+            logger.info(f"Final response stem URLs count: {len(result['stem_urls'])}")
             logger.info(f"Final response keys: {list(response.keys())}")
             logger.info("=== HANDLER RETURNING SUCCESS ===")
             return response
