@@ -35,7 +35,7 @@ class SupabaseClient:
         Upload a file to Supabase storage and return public URL
         
         Args:
-            file_path: Storage path (e.g., "stems/job_id/vocals.wav")
+            file_path: Storage path (e.g., "job_id/vocals.wav")
             file_data: Binary file data
             content_type: MIME type
             
@@ -83,7 +83,7 @@ class SupabaseClient:
         logger.info(f"Starting upload of {len(stem_buffers)} stems for job {job_id}")
         
         for stem_name, buffer in stem_buffers.items():
-            file_path = f"stems/{job_id}/{stem_name}.wav"
+            file_path = f"{job_id}/{stem_name}.wav"
             file_data = buffer.getvalue()
             logger.info(f"Uploading {stem_name}: {len(file_data)} bytes")
             

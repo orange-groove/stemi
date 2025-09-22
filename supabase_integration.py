@@ -50,7 +50,7 @@ class SupabaseStemStorage:
         for stem_name, file_path in stem_files.items():
             try:
                 # Generate storage path
-                storage_path = f"stems/{job_id}/{stem_name}.wav"
+                storage_path = f"{job_id}/{stem_name}.wav"
                 
                 # Upload file to Supabase
                 with open(file_path, "rb") as f:
@@ -96,7 +96,7 @@ class SupabaseStemStorage:
         for stem_name, stem_buffer in stem_files.items():
             try:
                 # Generate storage path
-                storage_path = f"stems/{job_id}/{stem_name}.wav"
+                storage_path = f"{job_id}/{stem_name}.wav"
                 
                 # Upload file to Supabase
                 result = self.supabase.storage.from_(self.bucket_name).upload(
@@ -124,13 +124,13 @@ class SupabaseStemStorage:
         """Get public URLs for all stems in a job"""
         try:
             # List files in the job directory
-            files = self.supabase.storage.from_(self.bucket_name).list(f"stems/{job_id}/")
+            files = self.supabase.storage.from_(self.bucket_name).list(f"{job_id}/")
             
             stem_urls = {}
             for file_info in files:
                 if file_info["name"].endswith(".wav"):
                     stem_name = file_info["name"].replace(".wav", "")
-                    storage_path = f"stems/{job_id}/{file_info['name']}"
+                    storage_path = f"{job_id}/{file_info['name']}"
                     public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(storage_path)
                     stem_urls[stem_name] = public_url
             
@@ -144,10 +144,10 @@ class SupabaseStemStorage:
         """Delete all stems for a job"""
         try:
             # List files in the job directory
-            files = self.supabase.storage.from_(self.bucket_name).list(f"stems/{job_id}/")
+            files = self.supabase.storage.from_(self.bucket_name).list(f"{job_id}/")
             
             # Delete all files
-            file_paths = [f"stems/{job_id}/{file_info['name']}" for file_info in files]
+            file_paths = [f"{job_id}/{file_info['name']}" for file_info in files]
             if file_paths:
                 self.supabase.storage.from_(self.bucket_name).remove(file_paths)
                 
