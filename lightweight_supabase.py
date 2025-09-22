@@ -6,6 +6,7 @@ import os
 import requests
 import logging
 from typing import Dict, BinaryIO
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class LightweightSupabaseClient:
             logger.error(f"Error uploading file {file_path}: {e}")
             raise
 
-    def upload_stems(self, job_id: str, stem_buffers: Dict[str, BinaryIO]) -> Dict[str, str]:
+    def upload_stems(self, job_id: str, stem_buffers: Dict[str, io.BytesIO]) -> Dict[str, str]:
         """
         Upload multiple stems and return their URLs
         
@@ -79,16 +80,21 @@ class LightweightSupabaseClient:
         """
         uploaded_urls = {}
         
+        logger.info(f"Starting upload of {len(stem_buffers)} stems for job {job_id}")
+        
         for stem_name, buffer in stem_buffers.items():
             file_path = f"stems/{job_id}/{stem_name}.wav"
             file_data = buffer.getvalue()
+            logger.info(f"Uploading {stem_name}: {len(file_data)} bytes")
             
             try:
                 public_url = self.upload_file(file_path, file_data, "audio/wav")
                 uploaded_urls[stem_name] = public_url
-                logger.info(f"Uploaded {stem_name}: {public_url}")
+                logger.info(f"✅ Uploaded {stem_name}: {public_url}")
             except Exception as e:
-                logger.error(f"Failed to upload {stem_name}: {e}")
+                logger.error(f"❌ Failed to upload {stem_name}: {e}")
                 raise
+        
+        logger.info(f"✅ All uploads completed: {list(uploaded_urls.keys())}")
         
         return uploaded_urls
