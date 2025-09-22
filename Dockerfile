@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r runpod_requirements.txt
 
 # Copy the RunPod handler and lightweight Supabase client
 COPY runpod_handler.py .
-COPY lightweight_supabase.py .
+COPY supabase_client.py .
 
 # Create directories for uploads and outputs
 RUN mkdir -p /app/uploads /app/outputs
