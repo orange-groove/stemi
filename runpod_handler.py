@@ -137,8 +137,8 @@ def separate_stems(audio_data: bytes, stems: list, device) -> dict:
             
             # Initialize Supabase client (no fallback - must work)
             try:
-                supabase_client = LightweightSupabaseClient()
-                logger.info("Lightweight Supabase client initialized successfully")
+                supabase_client = SupabaseClient()
+                logger.info("Supabase client initialized successfully")
             except Exception as e:
                 logger.error(f"Supabase client initialization failed: {e}")
                 raise Exception(f"Failed to initialize Supabase client: {e}")
