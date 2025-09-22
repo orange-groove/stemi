@@ -17,8 +17,8 @@ import base64
 import io
 from pathlib import Path
 import logging
-# Import lightweight Supabase client for RunPod
-from lightweight_supabase import LightweightSupabaseClient
+# Import Supabase client for RunPod
+from supabase_client import SupabaseClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

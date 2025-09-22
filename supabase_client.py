@@ -1,5 +1,5 @@
 """
-Lightweight Supabase client using only requests
+Supabase client using only requests
 Specifically designed for RunPod environment to avoid heavy dependencies
 """
 import os
@@ -10,7 +10,7 @@ import io
 
 logger = logging.getLogger(__name__)
 
-class LightweightSupabaseClient:
+class SupabaseClient:
     def __init__(self):
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_ANON_KEY")
